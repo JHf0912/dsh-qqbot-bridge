@@ -271,6 +271,13 @@ pnpm check
 
 提交改动前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [SECURITY.md](SECURITY.md)。安全问题请通过 GitHub Security Advisory 私下报告，不要公开提交凭据或日志。
 
+## 作者与交流
+
+- 作者：[wang-22-code](https://github.com/wang-22-code)
+- QQ：`1722800850`
+
+欢迎交流使用体验、问题反馈和改进建议。请勿通过公开 Issue、截图或聊天记录发送 AppSecret、API Key、OpenID 等敏感信息。
+
 ## 来源与许可
 
 本项目派生自腾讯官方 MIT 项目 [`@tencent-connect/dsh-qqbot`](https://github.com/tencent-connect/dsh-qqbot)，由社区独立维护，并非腾讯官方产品。详见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。
