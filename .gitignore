@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+qqbot-workspace/
+.env
+.env.*
+!.env.example
+*.secret
+*.pem
+*.key
+qrcode*.txt
+.dsh-sessions/
+*.tsbuildinfo
+*.tgz
+*.log
+.DS_Store

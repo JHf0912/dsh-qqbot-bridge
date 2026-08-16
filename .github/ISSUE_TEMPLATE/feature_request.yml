@@ -1,0 +1,32 @@
+name: Feature request
+description: 建议合规、安全的腾讯官方 QQ Bot 能力。
+title: '[Feature] '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 使用场景
+      description: 这个功能解决什么问题？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: 安全与协议影响
+      description: 是否影响权限、隐私、消息频率或腾讯平台合规？
+    validations:
+      required: true
+  - type: checkboxes
+    id: official
+    attributes:
+      label: 官方能力确认
+      options:
+        - label: 该建议不依赖个人 QQ 逆向协议、Hook、注入或风控绕过。
+          required: true

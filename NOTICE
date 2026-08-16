@@ -1,0 +1,10 @@
+dsh-qqbot-safe
+
+This project is derived from @tencent-connect/dsh-qqbot:
+https://github.com/tencent-connect/dsh-qqbot
+
+The upstream project is Copyright (c) 2026 Tencent Connect and licensed under
+the MIT License. Its copyright notice and license are retained in LICENSE.
+
+This derivative is independently maintained and is not an official Tencent
+product. It uses Tencent's official QQ Bot SDK and QQ Bot Open Platform APIs.

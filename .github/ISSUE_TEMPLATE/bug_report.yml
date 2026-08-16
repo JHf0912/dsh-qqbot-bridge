@@ -1,0 +1,41 @@
+name: Bug report
+description: 报告可复现的问题；不要提交 Secret、OpenID、聊天记录或二维码。
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: 请先阅读 README 的故障排查，并对日志进行脱敏。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 插件、DSH、Node.js 和操作系统版本
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为与脱敏日志
+      description: 删除 Secret、API Key、OpenID、msg_id、二维码 URL 和聊天正文。
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已确认内容不包含凭据、OpenID、聊天记录或有效二维码。
+          required: true

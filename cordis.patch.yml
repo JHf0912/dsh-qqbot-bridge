@@ -1,0 +1,46 @@
+# dsh-qqbot-safe bundle patch
+#
+# 当本包通过 `dsh plugin --profile <name> add dsh-qqbot-safe` 安装后，
+# dsh 启动时自动加载此 patch。
+#
+# 环境变量：
+#   QQBOT_APPID  - QQ Bot AppID（必填）
+#   QQBOT_SECRET - QQ Bot AppSecret（必填）
+#
+# 叠加顺序：dsh-base → 本 bundle patch → profile cordis.patch.yml → --patch
+
+# ── 插入 im-qqbot 插件行 ──
+- insert:
+    - id: im-qqbot
+      name: 'dsh-qqbot-safe'
+      config:
+        appId: __FROM_ENV__
+        appSecret: __FROM_ENV__
+        # DSH rc.6 的程序化 Agent 需要显式模型；用户仍可通过 /model 切换
+        provider: deepseek-official
+        model: deepseek-v4-flash
+        requireMention: true
+        # 必须改成一个专用工作目录，安全检查拒绝文件系统根目录和用户主目录
+        cwd: './qqbot-workspace'
+        textChunkLimit: 4500
+        sessionIdleTimeout: 1800000
+        maxQueue: 20
+        processingTimeoutMs: 120000
+        historyLimit: 10
+        access:
+          # 安全默认：未填白名单时拒绝所有消息，不会退化成 allow-all
+          c2cMode: allowlist
+          c2cAllow: !!js >-
+            (process.env.QQBOT_C2C_ALLOW ?? '')
+              .split(',')
+              .map((value) => value.trim())
+              .filter(Boolean)
+          groupMode: disabled
+          groupAllow: []
+        acknowledgeOpenAccess: false
+        allowUnsafeCwd: false
+        logMessageContent: false
+        # QQ 内一次性审批：仅同一会话的原发送者可批准，超时自动拒绝
+        enableApprovals: true
+        approvalTimeoutMs: 120000
+        debug: false
