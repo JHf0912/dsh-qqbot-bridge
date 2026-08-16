@@ -1,5 +1,5 @@
 param(
-  [string]$Package = 'dsh-qqbot-safe',
+  [string]$Package = 'dsh-qqbot-bridge',
   [string]$Version = '',
   [string]$Profile = 'qqbot',
   [string]$Registry = ''

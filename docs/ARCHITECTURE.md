@@ -2,7 +2,7 @@
 
 ## 设计目标
 
-`dsh-qqbot-safe` 是一个 Cordis 插件，将腾讯 QQ Bot WebSocket 事件转换为 DSH Agent 消息，并把 DSH Session 事件转换回 QQ 回复。设计优先级依次为：协议合规、默认拒绝、会话隔离、可诊断性和可扩展性。
+`dsh-qqbot-bridge` 是一个 Cordis 插件，将腾讯 QQ Bot WebSocket 事件转换为 DSH Agent 消息，并把 DSH Session 事件转换回 QQ 回复。设计优先级依次为：协议合规、默认拒绝、会话隔离、可诊断性和可扩展性。
 
 ## 数据流
 

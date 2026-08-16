@@ -1,5 +1,5 @@
 {
-  "name": "dsh-qqbot-safe",
+  "name": "dsh-qqbot-bridge",
   "version": "0.1.0",
   "description": "Security-first QQ Bot channel plugin for DeepSeek Harness, built on Tencent's official SDK",
   "packageManager": "pnpm@11.19.0",
@@ -52,7 +52,7 @@
     "cordis",
     "plugin"
   ],
-  "author": "dsh-qqbot-safe contributors",
+  "author": "dsh-qqbot-bridge contributors",
   "license": "MIT",
   "dsh": {
     "bundle": {

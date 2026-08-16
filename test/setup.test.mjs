@@ -17,7 +17,7 @@ test('upsertEnv preserves unrelated values and replaces credentials', () => {
 });
 
 test('credential persistence never logs the secret', () => {
-  const home = mkdtempSync(join(tmpdir(), 'dsh-qqbot-safe-'));
+  const home = mkdtempSync(join(tmpdir(), 'dsh-qqbot-bridge-'));
   const logs = [];
   const logger = { info: (line) => logs.push(line), warn: (line) => logs.push(line) };
   const secret = 'do-not-log-this';

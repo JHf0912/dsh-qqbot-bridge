@@ -1,6 +1,6 @@
-# dsh-qqbot-safe bundle patch
+# dsh-qqbot-bridge bundle patch
 #
-# 当本包通过 `dsh plugin --profile <name> add dsh-qqbot-safe` 安装后，
+# 当本包通过 `dsh plugin --profile <name> add dsh-qqbot-bridge` 安装后，
 # dsh 启动时自动加载此 patch。
 #
 # 环境变量：
@@ -12,7 +12,7 @@
 # ── 插入 im-qqbot 插件行 ──
 - insert:
     - id: im-qqbot
-      name: 'dsh-qqbot-safe'
+      name: 'dsh-qqbot-bridge'
       config:
         appId: __FROM_ENV__
         appSecret: __FROM_ENV__

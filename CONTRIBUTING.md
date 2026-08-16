@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢参与 `dsh-qqbot-safe`。
+感谢参与 `dsh-qqbot-bridge`。
 
 ## 开发环境
 

@@ -16,7 +16,7 @@ interface SetupLogger {
   warn(msg: string, ...args: unknown[]): void;
 }
 
-export async function runQrSetup(source = 'dsh-qqbot-safe'): Promise<SetupCredentials | null> {
+export async function runQrSetup(source = 'dsh-qqbot-bridge'): Promise<SetupCredentials | null> {
   console.log('\n══════════════════════════════════════════════════════');
   console.log('  QQ Bot 凭据未配置，启动腾讯官方扫码绑定');
   console.log('══════════════════════════════════════════════════════\n');

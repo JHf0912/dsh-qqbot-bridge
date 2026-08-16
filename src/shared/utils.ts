@@ -28,10 +28,10 @@ function readPluginVersion(): string {
 /**
  * 构造 User-Agent 头
  *
- * 格式: dsh-qqbot-safe/{version} (Node/{nodeVersion}; {platform})
+ * 格式: dsh-qqbot-bridge/{version} (Node/{nodeVersion}; {platform})
  */
 export function buildUserAgent(): string {
-  return `dsh-qqbot-safe/${PLUGIN_VERSION} (Node/${process.versions.node}; ${os.platform()})`;
+  return `dsh-qqbot-bridge/${PLUGIN_VERSION} (Node/${process.versions.node}; ${os.platform()})`;
 }
 
 /**

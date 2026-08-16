@@ -1,4 +1,4 @@
-# dsh-qqbot-safe
+# dsh-qqbot-bridge
 
 基于腾讯官方 QQ 机器人开放平台，将 QQ 私聊或群聊安全地接入 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness)。给机器人发送消息，就等同于向一个独立的 DSH Agent 会话发送消息。
 
@@ -79,7 +79,7 @@ node "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js" -
 ### npm 发布后安装
 
 ```bash
-dsh plugin --profile qqbot add dsh-qqbot-safe
+dsh plugin --profile qqbot add dsh-qqbot-bridge
 dsh --profile qqbot
 ```
 
