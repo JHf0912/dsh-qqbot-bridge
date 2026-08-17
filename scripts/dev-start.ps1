@@ -9,11 +9,30 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
 $dshBin = Join-Path $dshHome 'profiles\node_modules\@deepseek-ai\dsh\lib\bin.js'
 
+# ── 解析 pnpm 调用方式：优先 pnpm，其次 corepack pnpm（Node 自带）──
+$script:useCorepackPnpm = $false
+if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+  if (Get-Command corepack -ErrorAction SilentlyContinue) {
+    $script:useCorepackPnpm = $true
+  } else {
+    throw '未找到 pnpm 和 corepack，请先执行: corepack enable 或用 npm install -g pnpm'
+  }
+}
+
+function Invoke-Pnpm {
+  param([Parameter(ValueFromRemainingArguments)][string[]]$Arguments)
+  if ($script:useCorepackPnpm) {
+    & corepack pnpm @Arguments
+  } else {
+    & pnpm @Arguments
+  }
+  if ($LASTEXITCODE -ne 0) {
+    throw "pnpm $($Arguments -join ' ') 失败（exit $LASTEXITCODE）"
+  }
+}
+
 if (-not (Test-Path -LiteralPath $dshBin)) {
   throw "未找到 DSH CLI: $dshBin"
-}
-if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
-  throw '未找到 pnpm，请先执行: corepack enable'
 }
 
 # ── API Key 检查：进程环境或 $dshHome/.env 中缺失时交互式输入并落盘 ──
@@ -47,11 +66,9 @@ if (-not $env:DEEPSEEK_API_KEY) {
 Push-Location $projectRoot
 try {
   if (-not $SkipInstall) {
-    & pnpm install --frozen-lockfile
-    if ($LASTEXITCODE -ne 0) { throw '依赖安装失败' }
+    Invoke-Pnpm install --frozen-lockfile
   }
-  & pnpm build
-  if ($LASTEXITCODE -ne 0) { throw '构建失败' }
+  Invoke-Pnpm build
 
   if ($BuildOnly) { exit 0 }
 
@@ -64,8 +81,7 @@ try {
   }
   Push-Location $profileRoot
   try {
-    & pnpm link $projectRoot
-    if ($LASTEXITCODE -ne 0) { throw '链接插件失败' }
+    Invoke-Pnpm link $projectRoot
   } finally {
     Pop-Location
   }
