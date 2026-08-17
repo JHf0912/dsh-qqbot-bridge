@@ -44,6 +44,7 @@ export class OutboundBuffer {
   private flushing = false;
   private finalized = false;
   private gaveUp = false;
+  private sentChars = 0;
   private inflight: Promise<void> | null = null;
   private finalizePromise: Promise<void> | null = null;
   private readonly options: OutboundOptions;
@@ -76,6 +77,11 @@ export class OutboundBuffer {
   /** 获取当前累积文本 */
   get text(): string {
     return this.buffer;
+  }
+
+  /** 本回合已成功送达的字符数（assistant/message 用它对齐全文、避免重发） */
+  get deliveredChars(): number {
+    return this.sentChars;
   }
 
   /** 安排延迟发送（throttle：已有定时器时忽略，保证两次发送最小间隔） */
@@ -116,6 +122,21 @@ export class OutboundBuffer {
     })();
 
     return this.finalizePromise;
+  }
+
+  /**
+   * 以权威全文收尾（幂等）：已通过增量流式送达的部分不再重发，
+   * 只补发 fullText 中尚未到达用户的内容；tail 为空时不做任何发送。
+   */
+  async finalizeWith(fullText: string): Promise<void> {
+    this.finalized = true;
+    this.clearTimer();
+    if (fullText.length > this.sentChars) {
+      this.buffer = fullText.slice(this.sentChars);
+      return this.finalize();
+    }
+    this.buffer = '';
+    return Promise.resolve();
   }
 
   /** 取消未发送的定时器并丢弃缓冲 */
@@ -163,8 +184,10 @@ export class OutboundBuffer {
           break;
         }
 
-        // 前缀记账：丢弃已送达前缀，只保留未送达余量
-        this.buffer = chunks.slice(failedAt).join('\n');
+        // 前缀记账：丢弃已送达前缀（计入 sentChars），只保留未送达余量
+        const unsent = chunks.slice(failedAt).join('\n');
+        this.sentChars += sendable.length - unsent.length;
+        this.buffer = unsent;
         attempt += 1;
 
         if (attempt > this.options.maxRetries) {
@@ -192,8 +215,9 @@ export class OutboundBuffer {
     return this.buffer;
   }
 
-  /** 消费已送达前缀，buffer 只留未发送余量 */
+  /** 消费已送达前缀，buffer 只留未发送余量；sentChars 记录到达用户的累计字符数 */
   private consumeSent(sentLength: number): void {
+    this.sentChars += sentLength;
     this.buffer = this.buffer.slice(sentLength);
   }
 

@@ -38,6 +38,7 @@ export function createOutboundHandler(
 ): (session: SessionLike, event: SessionEvent) => void {
   const buffers = new Map<string, OutboundBuffer>();
   const settling = new Map<string, Promise<void>>();
+  const delivered = new Set<string>();
   const limit = config.textChunkLimit;
 
   const options: OutboundOptions = {
@@ -62,7 +63,7 @@ export function createOutboundHandler(
       }
 
       case 'assistant/message': {
-        void handleMessage(sessionId, record, event, buffers, settling, bot, limit, options, logger, config.debug);
+        void handleMessage(sessionId, record, event, buffers, settling, delivered, bot, limit, options, logger, config.debug);
         break;
       }
 
@@ -75,7 +76,7 @@ export function createOutboundHandler(
           logger.error(`im-qqbot: DSH turn failed: ${detail}`);
           if (config.debug) console.error(`[im-qqbot] [outbound] DSH turn failed: ${detail}`);
         }
-        handleTurnEnd(sessionId, record, buffers, settling, bot, reason?.kind === 'error');
+        handleTurnEnd(sessionId, record, buffers, settling, delivered, bot, reason?.kind === 'error');
         break;
       }
     }
@@ -135,21 +136,13 @@ async function handleMessage(
   event: SessionEvent,
   buffers: Map<string, OutboundBuffer>,
   settling: Map<string, Promise<void>>,
+  delivered: Set<string>,
   bot: QQBotSender,
   limit: number,
   options: OutboundOptions,
   logger: Logger,
   debug: boolean,
 ): Promise<void> {
-  const buffer = buffers.get(sessionId);
-  if (buffer && buffer.text.trim()) {
-    const chain = buffer.finalize();
-    settling.set(sessionId, chain);
-    await chain;
-    buffers.delete(sessionId);
-    return;
-  }
-
   const message = event.data as { message?: { content?: Array<{ type: string; text?: string }> } };
   const blocks = message?.message?.content;
   if (!blocks || !Array.isArray(blocks)) return;
@@ -164,6 +157,18 @@ async function handleMessage(
   const fullText = textParts.join('\n');
   if (!fullText.trim()) return;
 
+  const buffer = buffers.get(sessionId);
+  if (buffer) {
+    // 增量流式已送达部分不重发；finalizeWith 内部按 sentChars 对账，
+    // 只补发权威全文的未送达尾部（避免「好的…」先流式 flush、又被全文重发）。
+    delivered.add(sessionId);
+    const chain = buffer.finalizeWith(fullText);
+    settling.set(sessionId, chain);
+    await chain;
+    buffers.delete(sessionId);
+    return;
+  }
+
   // 无流式 buffer 的回合（interval=0 或纯非流式事件）：灌入新 buffer 统一走重试路径
   await waitSettledChain(settling, sessionId);
   const fallback = new OutboundBuffer(record, bot, limit, logger, {
@@ -175,6 +180,7 @@ async function handleMessage(
   });
   buffers.set(sessionId, fallback);
   fallback.append(fullText);
+  delivered.add(sessionId);
   const chain = fallback.finalize();
   settling.set(sessionId, chain);
   await chain;
@@ -182,24 +188,27 @@ async function handleMessage(
   if (debug) console.log('[im-qqbot] [outbound] QQ reply sent');
 }
 
-/** 处理轮次结束：终结 buffer + 必要时通知用户 */
+/** 处理轮次结束：终结 buffer + 未送达完整回复时通知用户 */
 function handleTurnEnd(
   sessionId: string,
   record: SessionRecord,
   buffers: Map<string, OutboundBuffer>,
   settling: Map<string, Promise<void>>,
+  delivered: Set<string>,
   bot: QQBotSender,
   turnFailed: boolean,
 ): void {
+  const alreadyDelivered = delivered.delete(sessionId);
   const buffer = buffers.get(sessionId);
   if (!buffer) {
-    if (turnFailed) notifyTurnError(record.replyTarget, bot);
+    // 完整回复已送达时，turn/end 的 error 只是尾随噪音（错误已进日志）
+    if (turnFailed && !alreadyDelivered) notifyTurnError(record.replyTarget, bot);
     return;
   }
 
   const chain = buffer.finalize().then(() => {
     buffers.delete(sessionId);
-    if (turnFailed) notifyTurnError(record.replyTarget, bot);
+    if (turnFailed && !alreadyDelivered) notifyTurnError(record.replyTarget, bot);
   });
   settling.set(sessionId, chain);
 }
