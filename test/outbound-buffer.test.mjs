@@ -234,6 +234,47 @@ test('compat: no options keeps legacy manual flush/cancel semantics', async () =
   assert.equal(sender.calls.length, 0);
 });
 
+test('dedupe: assistant/message after partial incremental flush only sends the tail', async () => {
+  // 模拟真实时序：流式 chunk 先增量送达 "hello world"，然后 assistant/message
+  // 携带权威全文到达，此时已送达部分不应重发，只补发未送达的 "!"。
+  const sender = makeSender();
+  const buf = new OutboundBuffer(makeRecord(), sender, 100, logger, {
+    flushIntervalMs: 50,
+    maxRetries: 2,
+    retryBaseMs: 10,
+  });
+
+  buf.append('hello world');
+  await buf.flush(); // 增量已送达 "hello world"
+  assert.equal(sender.calls.length, 1);
+  assert.equal(sender.calls[0].content, 'hello world');
+  assert.equal(buf.deliveredChars, 11);
+
+  // assistant/message 到达，全文 = "hello world!"
+  await buf.finalizeWith('hello world!');
+  assert.equal(sender.calls.length, 2);
+  assert.equal(sender.calls[1].content, '!');
+  assert.equal(buf.text, '');
+});
+
+test('dedupe: assistant/message full text fully delivered by streaming sends nothing extra', async () => {
+  const sender = makeSender();
+  const buf = new OutboundBuffer(makeRecord(), sender, 100, logger, {
+    flushIntervalMs: 50,
+    maxRetries: 2,
+    retryBaseMs: 10,
+  });
+
+  buf.append('entire reply already streamed');
+  await buf.flush();
+  assert.equal(sender.calls.length, 1);
+
+  // 权威全文与已送达完全一致：不产生任何额外发送
+  await buf.finalizeWith('entire reply already streamed');
+  assert.equal(sender.calls.length, 1);
+  assert.equal(buf.text, '');
+});
+
 test('empty/whitespace buffer never triggers a send', async () => {
   const sender = makeSender();
   const buf = new OutboundBuffer(makeRecord(), sender, 100, logger, {
