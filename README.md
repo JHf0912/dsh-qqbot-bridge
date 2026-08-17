@@ -55,6 +55,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-start.ps1
 
 > 若 `corepack enable` 报权限错误（EPERM，需要管理员权限），改用 `npm install -g pnpm@11.19.0` 安装 pnpm 即可。
 
+启动脚本也会自动检查 `DEEPSEEK_API_KEY`：缺失时会在终端提示输入并写入 `$DSH_HOME/.env`。
+
 脚本会完成：
 
 1. 安装依赖并构建 TypeScript；
@@ -86,11 +88,12 @@ node "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js" -
 
 ### Linux/macOS：从源码一键启动
 
-脚本会自动检查环境并补齐缺失部分，无需手动准备：
+脚本会自动检查环境：
 
-- node 缺失或低于 22 → 自动安装 Node 22 LTS（固定 v22.23.2）；
+- node 未安装 → 报错并提示先手动安装 Node.js >= 22（https://nodejs.org）；
 - pnpm 缺失 → 自动执行 `corepack enable`；
-- DSH CLI 缺失 → 自动安装 `@deepseek-ai/dsh` 到 `$DSH_HOME/profiles`（含 pnpm 11 必需的 `allowBuilds` 配置，避免原生依赖构建被拦截）。
+- DSH CLI 缺失 → 自动安装 `@deepseek-ai/dsh` 到 `$DSH_HOME/profiles`（含 pnpm 11 必需的 `allowBuilds` 配置，避免原生依赖构建被拦截）；
+- `DEEPSEEK_API_KEY` 缺失 → 交互式提示输入并写入 `$DSH_HOME/.env`，无需手动准备。
 
 克隆仓库后，在项目根目录执行：
 
