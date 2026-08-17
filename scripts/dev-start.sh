@@ -5,9 +5,9 @@
 #   ./scripts/dev-start.sh [--profile 名称] [--skip-install] [--build-only]
 #
 # 脚本会完成：
-#   0. 环境检查：node 缺失或低于 22 时自动安装 Node 22 LTS（固定 v22.23.2，
-#      不过度追求新版）；缺 pnpm 时自动执行 corepack enable；
-#      缺 DSH CLI 时自动安装 @deepseek-ai/dsh 到 $DSH_HOME/profiles；
+#   0. 环境检查：缺 pnpm 时自动执行 corepack enable；缺 DSH CLI 时自动安装
+#      @deepseek-ai/dsh 到 $DSH_HOME/profiles；缺 DEEPSEEK_API_KEY 时
+#      交互式提示输入并写入 $DSH_HOME/.env；
 #   1. 安装依赖并构建 TypeScript；
 #   2. 创建或更新 profile；
 #   3. 将 profile 链接到当前源码，后续重新构建即可测试最新代码；
@@ -17,11 +17,6 @@ set -euo pipefail
 PROFILE="qqbot-safe-dev"
 SKIP_INSTALL=0
 BUILD_ONLY=0
-
-# Node 22 LTS 固定版本（https://nodejs.org/dist/latest-v22.x/ 的当前补丁版）
-NODE_MAJOR="22"
-NODE_VERSION="22.23.2"
-NODE_URL_BASE="https://nodejs.org/dist"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -96,59 +91,11 @@ EOF
   echo "DSH CLI 已安装: $DSH_BIN"
 }
 
-# 检查 node：>= 22 直接用；缺失或过旧时下载官方预编译包装到 /usr/local
-ensure_node() {
-  if command -v node >/dev/null 2>&1; then
-    local current major
-    current="$(node -v | sed 's/^v//')"
-    major="${current%%.*}"
-    if [[ "$major" -ge "$NODE_MAJOR" ]]; then
-      echo "node v$current 满足要求（>= $NODE_MAJOR）"
-      return 0
-    fi
-    echo "node v$current 过旧（需要 >= $NODE_MAJOR），自动安装 Node v$NODE_VERSION ..."
-  else
-    echo "未找到 node，自动安装 Node v$NODE_VERSION ..."
-  fi
-
-  local os arch
-  case "$(uname -s)" in
-    Linux) os="linux" ;;
-    Darwin) os="darwin" ;;
-    *) echo "错误：不支持的系统 $(uname -s)" >&2; exit 1 ;;
-  esac
-  case "$(uname -m)" in
-    x86_64 | amd64) arch="x64" ;;
-    aarch64 | arm64) arch="arm64" ;;
-    *) echo "错误：不支持的架构 $(uname -m)" >&2; exit 1 ;;
-  esac
-
-  local tarball="node-v${NODE_VERSION}-${os}-${arch}.tar.xz"
-  local url="${NODE_URL_BASE}/v${NODE_VERSION}/${tarball}"
-  local dest="/usr/local"
-
-  echo "下载 $url"
-  if ! curl -fsSL "$url" -o "/tmp/$tarball"; then
-    echo "错误：自动下载 Node 失败，请手动安装 Node.js >= 22：" >&2
-    echo "  $url" >&2
-    echo "  然后解压到 /usr/local 即可。" >&2
-    exit 1
-  fi
-
-  if [[ -w "$dest" ]]; then
-    tar -xJf "/tmp/$tarball" -C "$dest" --strip-components=1
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo tar -xJf "/tmp/$tarball" -C "$dest" --strip-components=1
-  else
-    echo "错误：无法写入 $dest（没有 sudo），请手动安装：" >&2
-    echo "  sudo tar -xJf /tmp/$tarball -C $dest --strip-components=1" >&2
-    exit 1
-  fi
-  rm -f "/tmp/$tarball"
-  hash -r 2>/dev/null || true
-  export PATH="/usr/local/bin:$PATH"
-  echo "Node v$NODE_VERSION 已安装到 $dest（bin 位于 /usr/local/bin）"
-}
+# 检查 node：只做存在性检查，不自动安装（版本须 >= 22，请自行安装）
+if ! command -v node >/dev/null 2>&1; then
+  echo "错误：未找到 node，请先安装 Node.js >= 22（https://nodejs.org）" >&2
+  exit 1
+fi
 
 # 检查 pnpm：缺失时用 corepack（Node 自带）生成 shim
 ensure_pnpm() {
@@ -168,9 +115,41 @@ ensure_pnpm() {
   exit 1
 }
 
-ensure_node
+# 检查 API Key：进程环境或 $DSH_HOME/.env 中缺失时交互式输入并落盘
+ensure_api_key() {
+  local env_file="$DSH_HOME/.env"
+  local existing=""
+
+  if [[ -n "${DEEPSEEK_API_KEY:-}" ]]; then
+    echo "已检测到环境变量 DEEPSEEK_API_KEY"
+    return 0
+  fi
+
+  if [[ -f "$env_file" ]]; then
+    existing="$(grep -E '^DEEPSEEK_API_KEY=' "$env_file" 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"')"
+  fi
+  if [[ -n "$existing" ]]; then
+    echo "已检测到 $env_file 中的 DEEPSEEK_API_KEY"
+    export DEEPSEEK_API_KEY="$existing"
+    return 0
+  fi
+
+  echo "未检测到 DEEPSEEK_API_KEY，请在下方粘贴你的 DeepSeek API Key（将写入 $env_file）："
+  read -rp "DEEPSEEK_API_KEY=" key
+  if [[ -z "${key:-}" ]]; then
+    echo "错误：未输入 API Key，无法继续" >&2
+    exit 1
+  fi
+  mkdir -p "$DSH_HOME"
+  echo "DEEPSEEK_API_KEY=\"$key\"" >> "$env_file"
+  chmod 600 "$env_file" 2>/dev/null || true
+  export DEEPSEEK_API_KEY="$key"
+  echo "已写入 $env_file（本次运行已生效）"
+}
+
 ensure_pnpm
 ensure_dsh
+ensure_api_key
 
 cd "$PROJECT_ROOT"
 
