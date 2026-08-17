@@ -84,7 +84,7 @@ node "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js" -
 
 ### Linux/macOS：从源码一键启动
 
-首先把 DSH CLI 装进 `$DSH_HOME/profiles`（启动脚本不会自动安装，缺少时会打印安装提示并退出）：
+脚本会自动检查环境：node 缺失或低于 22 时会自动安装 Node 22 LTS（固定 v22.23.2），pnpm 缺失时自动执行 `corepack enable`，无需手动准备。只有 DSH CLI 需要先手动装好（启动脚本不会自动安装，缺少时会打印安装提示并退出）：
 
 ```bash
 mkdir -p "$DSH_HOME/profiles" && cd "$DSH_HOME/profiles"
