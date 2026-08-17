@@ -53,6 +53,8 @@ pnpm install --frozen-lockfile
 powershell -ExecutionPolicy Bypass -File .\scripts\dev-start.ps1
 ```
 
+> 若 `corepack enable` 报权限错误（EPERM，需要管理员权限），改用 `npm install -g pnpm@11.19.0` 安装 pnpm 即可。
+
 脚本会完成：
 
 1. 安装依赖并构建 TypeScript；
@@ -84,13 +86,11 @@ node "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js" -
 
 ### Linux/macOS：从源码一键启动
 
-脚本会自动检查环境：node 缺失或低于 22 时会自动安装 Node 22 LTS（固定 v22.23.2），pnpm 缺失时自动执行 `corepack enable`，无需手动准备。只有 DSH CLI 需要先手动装好（启动脚本不会自动安装，缺少时会打印安装提示并退出）：
+脚本会自动检查环境并补齐缺失部分，无需手动准备：
 
-```bash
-mkdir -p "$DSH_HOME/profiles" && cd "$DSH_HOME/profiles"
-echo '{"name":"profiles","private":true,"dependencies":{"@deepseek-ai/dsh":"0.1.0-rc.6"}}' > package.json
-pnpm install
-```
+- node 缺失或低于 22 → 自动安装 Node 22 LTS（固定 v22.23.2）；
+- pnpm 缺失 → 自动执行 `corepack enable`；
+- DSH CLI 缺失 → 自动安装 `@deepseek-ai/dsh` 到 `$DSH_HOME/profiles`（含 pnpm 11 必需的 `allowBuilds` 配置，避免原生依赖构建被拦截）。
 
 克隆仓库后，在项目根目录执行：
 
@@ -149,6 +149,8 @@ DEEPSEEK_API_KEY="DeepSeek API Key"
 多个用户 OpenID 使用英文逗号分隔。不要把个人 QQ 号当作 OpenID。
 
 ### Profile 配置
+
+首次执行 `dsh plugin add` 时插件自带的 bundle 默认配置已自动生效（`provider: deepseek-official`、`model: deepseek-v4-flash`、私聊白名单、`cwd: ./qqbot-workspace` 等），**无需手动创建**。本节只用于按需自定义。
 
 Profile 配置位于 `$DSH_HOME/profiles/<profile>/cordis.patch.yml`。推荐保持 OpenID 在 `.env`，YAML 只读取环境变量：
 
