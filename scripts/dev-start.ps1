@@ -79,9 +79,6 @@ allowBuilds:
     throw "DSH CLI 安装失败，请手动检查 $profilesDir 下的 pnpm install 输出"
   }
   Write-Host "DSH CLI 已安装: $dshBin"
-
-  # 探测 node-pty 原生模块：缺二进制时 DSH 启动会直接崩溃
-  Ensure-NodePty
 }
 
 # 探测并修复 node-pty 原生模块（dsh 的 require 视角解析）
@@ -100,11 +97,31 @@ function Ensure-NodePty {
     return
   }
 
-  Write-Host '警告：node-pty 重建后仍不可用（多为无法从 GitHub 下载预编译包，或缺少编译工具）。' -ForegroundColor Red
+  # 下载预编译包失败（国内网络常见），强制源码编译再试一次
+  Write-Host '预编译包不可用，尝试源码编译 node-pty（需要编译工具）...'
+  Push-Location (Join-Path $dshHome 'profiles')
+  try {
+    $env:npm_config_build_from_source = 'true'
+    Invoke-Pnpm rebuild node-pty
+  } finally {
+    Remove-Item Env:npm_config_build_from_source -ErrorAction SilentlyContinue
+    Pop-Location
+  }
+
+  & node -e $probe $dshBin *> $null
+  if ($LASTEXITCODE -eq 0) {
+    Write-Host 'node-pty 源码编译完成'
+    return
+  }
+
+  Write-Host '警告：node-pty 仍不可用。请安装编译工具（build-essential/python3 或 gcc-c++/make/python3）后重新运行本脚本。' -ForegroundColor Red
   throw 'node-pty 原生模块不可用'
 }
 
 Ensure-DshCli
+
+# 无条件探测 node-pty 原生模块（DSH 已存在时也要查，避免启动即崩）
+Ensure-NodePty
 
 # 检查/校验 QQ 机器人凭据：缺失时引导录入，存在时调用 QQ 平台接口预校验，
 # 避免 DSH 启动后才因 invalid appid or secret 失败

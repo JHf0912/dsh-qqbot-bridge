@@ -96,10 +96,6 @@ EOF
     exit 1
   fi
   echo "DSH CLI 已安装: $DSH_BIN"
-
-  # 探测 node-pty 原生模块：缺二进制时 DSH 启动会直接崩溃
-  # （国内网络从 GitHub 下载预编译包常失败，且安装时未必有编译工具）
-  ensure_node_pty
 }
 
 # 探测并修复 node-pty 原生模块（dsh 的 require 视角解析）
@@ -120,8 +116,19 @@ ensure_node_pty() {
     return 0
   fi
 
-  echo "警告：node-pty 重建后仍不可用（多为无法从 GitHub 下载预编译包）。" >&2
-  echo "请安装编译工具后重新运行本脚本：" >&2
+  # 下载预编译包失败（国内网络常见），强制源码编译再试一次
+  echo "预编译包不可用，尝试源码编译 node-pty（需要编译工具）..."
+  (
+    cd "$DSH_HOME/profiles"
+    npm_config_build_from_source=true pnpm rebuild node-pty
+  )
+
+  if node -e "$probe" "$DSH_BIN" >/dev/null 2>&1; then
+    echo "node-pty 源码编译完成 ✅"
+    return 0
+  fi
+
+  echo "警告：node-pty 仍不可用。请安装编译工具后重新运行本脚本：" >&2
   echo "  Debian/Ubuntu: sudo apt update && sudo apt install -y build-essential python3" >&2
   echo "  CentOS/RHEL:   sudo yum install -y gcc-c++ make python3" >&2
   exit 1
@@ -302,6 +309,7 @@ ensure_qq_creds() {
 
 ensure_pnpm
 ensure_dsh
+ensure_node_pty
 ensure_api_key
 
 cd "$PROJECT_ROOT"
