@@ -115,6 +115,11 @@ chmod +x scripts/dev-start.sh
 node "$DSH_HOME/profiles/node_modules/@deepseek-ai/dsh/lib/bin.js" --profile qqbot-safe-dev
 ```
 
+### WSL 注意事项
+
+- **必须安装 Linux 版 Node ≥ 22**（如 `nvm install 22`）。WSL 的互操作会把 Windows 版 `node.exe` 暴露进 PATH，脚本检测到 `/mnt/...` 路径会直接拒绝并给出安装指引——否则会出现「终端无输出、Windows 桌面弹报错框」的静默崩溃。
+- 其余流程与 Linux/macOS 完全一致（自动装 pnpm/DSH、提示输入 API Key、启动前校验 QQ 凭据）。
+
 ### npm 发布后安装
 
 ```bash
@@ -309,6 +314,7 @@ pnpm check
 - DSH 直接 `turn/end`：显式配置 `provider` 和 `model`，并确认模型凭据可用。
 - 权限申请没有出现：确认 `enableApprovals: true`、审批策略为 `ask`，且操作确实触发沙箱升级。
 - 修改 `.env` 后无效：完整停止并重启 DSH。
+- 启动前校验报 `invalid appid or secret`（code 100016）：`.env` 中的 QQ 凭据已过期或被重置。删除 `QQBOT_APPID`、`QQBOT_SECRET` 两行后重启脚本并重新扫码绑定即可（脚本会提示选择），或到 q.qq.com 的「开发设置」复制当前 AppSecret 更新。删除命令：Windows PowerShell `(Get-Content "$env:USERPROFILE\.dsh\.env") | Where-Object { $_ -notmatch '^QQBOT_APPID=|^QQBOT_SECRET=' } | Set-Content "$env:USERPROFILE\.dsh\.env"`；Linux/macOS `sed -i '/^QQBOT_APPID=/d; /^QQBOT_SECRET=/d' ~/.dsh/.env`。
 
 更多排查步骤见 [故障排查](docs/TROUBLESHOOTING.md)。
 
