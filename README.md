@@ -26,10 +26,10 @@
 - Node.js `>= 22`
 - pnpm `11.x`（推荐通过 Corepack 管理）
 - 已安装并能正常运行的 DSH `>= 0.1.0-rc.6`
-- 可用的 DeepSeek 模型凭据
+- **必须**：DeepSeek API Key（`DEEPSEEK_API_KEY`）——不设置时机器人无法生成任何回复
 - 一个腾讯官方 QQ 机器人
 
-如果 DSH 使用 DeepSeek 官方接口，请把 API Key 写入本机 DSH 环境文件，而不是项目目录：
+> ⚠️ **必填项**：必须设置 `DEEPSEEK_API_KEY`。DSH 默认使用 DeepSeek 官方接口（`provider: deepseek-official`），缺少 API Key 时模型调用会在运行时直接失败，机器人只会回复「⚠️ 本轮处理出错，请重试。」，启动日志中也会出现警告。请把 API Key 写入本机 DSH 环境文件，而不是项目目录：
 
 ```dotenv
 # Windows 默认位置：C:\Users\<你>\.dsh\.env
