@@ -79,6 +79,29 @@ allowBuilds:
     throw "DSH CLI 安装失败，请手动检查 $profilesDir 下的 pnpm install 输出"
   }
   Write-Host "DSH CLI 已安装: $dshBin"
+
+  # 探测 node-pty 原生模块：缺二进制时 DSH 启动会直接崩溃
+  Ensure-NodePty
+}
+
+# 探测并修复 node-pty 原生模块（dsh 的 require 视角解析）
+function Ensure-NodePty {
+  $probe = 'const{createRequire}=require("module");const r=createRequire(process.argv[1]);require(r.resolve("node-pty"))'
+  & node -e $probe $dshBin *> $null
+  if ($LASTEXITCODE -eq 0) { return }
+
+  Write-Host 'node-pty 原生模块缺失，执行 pnpm rebuild node-pty ...'
+  Push-Location (Join-Path $dshHome 'profiles')
+  try { Invoke-Pnpm rebuild node-pty } finally { Pop-Location }
+
+  & node -e $probe $dshBin *> $null
+  if ($LASTEXITCODE -eq 0) {
+    Write-Host 'node-pty 重建完成'
+    return
+  }
+
+  Write-Host '警告：node-pty 重建后仍不可用（多为无法从 GitHub 下载预编译包，或缺少编译工具）。' -ForegroundColor Red
+  throw 'node-pty 原生模块不可用'
 }
 
 Ensure-DshCli
