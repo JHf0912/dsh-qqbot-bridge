@@ -236,10 +236,38 @@ ensure_qq_creds() {
   else
     local code
     code="$(echo "$resp" | grep -o '"code":[0-9]*' | head -n 1 | cut -d: -f2 || true)"
-    echo "❌ QQ 凭据无效（code=${code:-未知}）。请到 q.qq.com 打开 AppID $appid，" >&2
-    echo "   在「开发设置」查看并粘贴当前的 AppSecret 后重试。" >&2
-    echo "   更新: sed -i 's/^QQBOT_SECRET=.*/QQBOT_SECRET=\"<新Secret>\"/' $env_file" >&2
-    exit 1
+    echo "❌ QQ 凭据无效（code=${code:-未知}）。常见原因：平台侧 Secret 已重置、机器人被停用/重建。" >&2
+    echo "  1) 重新粘贴 AppID / AppSecret（写入 .env 后再次校验）" >&2
+    echo "  2) 删除凭据并重新扫码绑定（启动后显示二维码）" >&2
+    echo "  3) 跳过校验，仍然启动（可能启动后失败）" >&2
+    read -rp "选择 [1/2/3]: " choice
+    case "$choice" in
+      1)
+        read -rp "AppID: " appid
+        read -rsp "AppSecret: " secret; echo
+        if grep -q '^QQBOT_APPID=' "$env_file"; then
+          sed -i "s|^QQBOT_APPID=.*|QQBOT_APPID=\"$appid\"|" "$env_file"
+        else
+          echo "QQBOT_APPID=\"$appid\"" >> "$env_file"
+        fi
+        if grep -q '^QQBOT_SECRET=' "$env_file"; then
+          sed -i "s|^QQBOT_SECRET=.*|QQBOT_SECRET=\"$secret\"|" "$env_file"
+        else
+          echo "QQBOT_SECRET=\"$secret\"" >> "$env_file"
+        fi
+        ensure_qq_creds
+        return 0
+        ;;
+      2)
+        sed -i '/^QQBOT_APPID=/d; /^QQBOT_SECRET=/d' "$env_file"
+        echo "已删除 QQ 凭据。现在启动 DSH 显示二维码，扫码后 Ctrl+C 停止并重新运行本脚本。"
+        return 0
+        ;;
+      *)
+        echo "跳过校验，继续启动。" >&2
+        return 0
+        ;;
+    esac
   fi
 }
 
