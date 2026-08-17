@@ -58,7 +58,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-start.ps1
 2. 安装依赖并构建 TypeScript；
 3. 注册本地插件并链接到当前源码（后续 `pnpm build` 重建即可生效）；
 4. `DEEPSEEK_API_KEY` 缺失 → 终端提示输入并写入 `$DSH_HOME\.env`，已有则跳过；
-5. 启动前调用腾讯接口预校验 QQ 凭据——无效（如 `invalid appid or secret`）直接报错并给出平台核对指引，而不是等 DSH 启动后才失败。
+5. 启动前探测并自动修复 node-pty 原生模块（缺失时自动重建、必要时源码编译，国内网络下常见问题）；
+6. 启动前调用腾讯接口预校验 QQ 凭据——无效时当场提供 3 个选项：重新粘贴凭据 / 删除并重新扫码 / 跳过继续，而不是等 DSH 启动后才失败。
 
 首次没有 QQ 凭据时，终端会显示官方绑定二维码。扫码成功后，插件会自动写入：
 
@@ -89,6 +90,7 @@ node "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js" -
 - node 未安装 → 报错并提示先手动安装 Node.js >= 22（https://nodejs.org）；
 - pnpm 缺失 → 自动执行 `corepack enable`；
 - DSH CLI 缺失 → 自动安装 `@deepseek-ai/dsh` 到 `$DSH_HOME/profiles`（含 pnpm 11 必需的 `allowBuilds` 配置，避免原生依赖构建被拦截）；
+- node-pty 原生模块缺失 → 自动重建、必要时源码编译（国内网络常见问题）；
 - `DEEPSEEK_API_KEY` 缺失 → 交互式提示输入并写入 `$DSH_HOME/.env`，无需手动准备。
 
 克隆仓库后，在项目根目录执行：
@@ -270,7 +272,7 @@ acknowledgeOpenAccess: true
 - `/bot-version`：查看版本
 - `/bot-reset`：清除当前会话上下文
 - `/bot-new`：开始新会话
-- `/bot-stop`：终止当前任务
+- `/bot-stop`：终止当前任务（暂未实现）
 - `/model`：查看或切换模型
 - `/approve CODE`：允许当前一次权限申请
 - `/deny CODE`：拒绝当前一次权限申请
@@ -316,6 +318,7 @@ pnpm check
 - 修改 `.env` 后无效：完整停止并重启 DSH。
 - 启动前校验报 `invalid appid or secret`（code 100016）：`.env` 中的 QQ 凭据已过期或被重置。此时脚本会当场提供 3 个选项：`1` 重新粘贴 AppID/AppSecret（写入后立即重新校验）、`2` 删除凭据并重新扫码绑定、`3` 跳过校验继续启动。也可到 q.qq.com 的「开发设置」复制当前 AppSecret 后选 `1` 粘贴。手动删除命令：Windows PowerShell `(Get-Content "$env:USERPROFILE\.dsh\.env") | Where-Object { $_ -notmatch '^QQBOT_APPID=|^QQBOT_SECRET=' } | Set-Content "$env:USERPROFILE\.dsh\.env"`；Linux/macOS `sed -i '/^QQBOT_APPID=/d; /^QQBOT_SECRET=/d' ~/.dsh/.env`。
 - 启动报 `Failed to load native module: pty.node`（或 `dsh: plugin tree failed to load`）：node-pty 原生模块未装上，国内网络从 GitHub 下载预编译包失败最常见。启动脚本会自动修复（补 allowBuilds 配置 → `pnpm rebuild node-pty` → `npx node-gyp` 源码编译）。手动处理：先装编译工具（`sudo apt install -y build-essential python3`，CentOS 用 `yum install -y gcc-c++ make python3`），然后在 `~/.dsh/profiles` 补上含 `node-pty: true` 的 `pnpm-workspace.yaml` allowBuilds 配置（内容见启动脚本），再执行 `cd node_modules/.pnpm/node-pty@*/node_modules/node-pty && npx --yes node-gyp@11 rebuild`。若 `npx` 拉包缓慢，先 `npm config set registry https://registry.npmmirror.com`。
+- 启动日志出现 `[WARN] The package dsh-qqbot-bridge ... peerDependencies ...`：`pnpm link` 链接开发模式下的正常提示（peer 依赖由 DSH 运行时提供），不影响运行，可忽略。
 
 更多排查步骤见 [故障排查](docs/TROUBLESHOOTING.md)。
 
