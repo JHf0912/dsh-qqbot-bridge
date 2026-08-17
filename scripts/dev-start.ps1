@@ -18,7 +18,10 @@ if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
 
 Push-Location $projectRoot
 try {
-  if (-not $SkipInstall) { & pnpm install --frozen-lockfile }
+  if (-not $SkipInstall) {
+    & pnpm install --frozen-lockfile
+    if ($LASTEXITCODE -ne 0) { throw '依赖安装失败' }
+  }
   & pnpm build
   if ($LASTEXITCODE -ne 0) { throw '构建失败' }
 
@@ -28,8 +31,16 @@ try {
   if ($LASTEXITCODE -ne 0) { throw '安装本地插件失败' }
 
   $profileRoot = Join-Path $dshHome "profiles\$Profile"
+  if (-not (Test-Path -LiteralPath $profileRoot)) {
+    throw "profile 目录不存在: $profileRoot（请检查 dsh plugin add 输出）"
+  }
   Push-Location $profileRoot
-  try { & pnpm link $projectRoot } finally { Pop-Location }
+  try {
+    & pnpm link $projectRoot
+    if ($LASTEXITCODE -ne 0) { throw '链接插件失败' }
+  } finally {
+    Pop-Location
+  }
 
   Write-Host "启动 DSH profile: $Profile"
   & node $dshBin --profile $Profile
