@@ -7,6 +7,7 @@
 # 脚本会完成：
 #   0. 环境检查：node 缺失或低于 22 时自动安装 Node 22 LTS（固定 v22.23.2，
 #      不过度追求新版）；缺 pnpm 时自动执行 corepack enable；
+#      缺 DSH CLI 时自动安装 @deepseek-ai/dsh 到 $DSH_HOME/profiles；
 #   1. 安装依赖并构建 TypeScript；
 #   2. 创建或更新 profile；
 #   3. 将 profile 链接到当前源码，后续重新构建即可测试最新代码；
@@ -54,6 +55,46 @@ DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
 DSH_BIN="$DSH_HOME/profiles/node_modules/@deepseek-ai/dsh/lib/bin.js"
 
 # ── 环境检查与自动安装 ──
+
+# 检查 DSH CLI：缺失时自动装到 $DSH_HOME/profiles
+# （pnpm 11 默认拦截 build script，必须带 allowBuilds 的 workspace 文件，
+#   否则 koffi/node-pty/esbuild 等原生依赖安装直接报 ERR_PNPM_IGNORED_BUILDS）
+ensure_dsh() {
+  if [[ -f "$DSH_BIN" ]]; then
+    return 0
+  fi
+
+  echo "未找到 DSH CLI，自动安装 @deepseek-ai/dsh 到 $DSH_HOME/profiles ..."
+  mkdir -p "$DSH_HOME/profiles"
+
+  local pkg_json="$DSH_HOME/profiles/package.json"
+  if [[ ! -f "$pkg_json" ]]; then
+    echo '{"name":"profiles","private":true,"dependencies":{"@deepseek-ai/dsh":"0.1.0-rc.6"}}' > "$pkg_json"
+  fi
+
+  local ws_yaml="$DSH_HOME/profiles/pnpm-workspace.yaml"
+  if [[ ! -f "$ws_yaml" ]]; then
+    cat > "$ws_yaml" <<'EOF'
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
+  '@google/genai': true
+  koffi: true
+  node-pty: true
+  protobufjs: true
+EOF
+  fi
+
+  (
+    cd "$DSH_HOME/profiles"
+    pnpm install
+  )
+
+  if [[ ! -f "$DSH_BIN" ]]; then
+    echo "错误：DSH CLI 安装失败，请手动检查 $DSH_HOME/profiles 下的 pnpm install 输出" >&2
+    exit 1
+  fi
+  echo "DSH CLI 已安装: $DSH_BIN"
+}
 
 # 检查 node：>= 22 直接用；缺失或过旧时下载官方预编译包装到 /usr/local
 ensure_node() {
@@ -129,15 +170,7 @@ ensure_pnpm() {
 
 ensure_node
 ensure_pnpm
-
-if [[ ! -f "$DSH_BIN" ]]; then
-  echo "错误：未找到 DSH CLI: $DSH_BIN" >&2
-  echo "请先安装 DSH CLI 到 profiles 目录（脚本不会自动安装）：" >&2
-  echo "  mkdir -p \"\$DSH_HOME/profiles\" && cd \"\$DSH_HOME/profiles\"" >&2
-  echo "  echo '{\"name\":\"profiles\",\"private\":true,\"dependencies\":{\"@deepseek-ai/dsh\":\"0.1.0-rc.6\"}}' > package.json" >&2
-  echo "  pnpm install" >&2
-  exit 1
-fi
+ensure_dsh
 
 cd "$PROJECT_ROOT"
 
