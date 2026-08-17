@@ -82,6 +82,37 @@ node "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js" -
 
 如果设置了自定义 `DSH_HOME`，请将路径替换为对应目录。
 
+### Linux/macOS：从源码一键启动
+
+首先把 DSH CLI 装进 `$DSH_HOME/profiles`（启动脚本不会自动安装，缺少时会打印安装提示并退出）：
+
+```bash
+mkdir -p "$DSH_HOME/profiles" && cd "$DSH_HOME/profiles"
+echo '{"name":"profiles","private":true,"dependencies":{"@deepseek-ai/dsh":"0.1.0-rc.6"}}' > package.json
+pnpm install
+```
+
+克隆仓库后，在项目根目录执行：
+
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+chmod +x scripts/dev-start.sh
+./scripts/dev-start.sh
+```
+
+脚本完成的工作与 Windows 版一致：安装依赖并构建 TypeScript、创建或更新 `qqbot-safe-dev` profile、将 profile 链接到当前源码、启动 DSH。常用参数：
+
+- `--profile 名称`：指定 profile 名（默认 `qqbot-safe-dev`）
+- `--skip-install`：跳过依赖安装
+- `--build-only`：只安装并构建，不启动
+
+首次启动同样需要扫码绑定。看到 `Bot ready` 后重启一次（首次扫码写入的 `QQBOT_C2C_ALLOW` 不会注入本次进程，不重启白名单为空）。以后启动可直接执行：
+
+```bash
+node "$DSH_HOME/profiles/node_modules/@deepseek-ai/dsh/lib/bin.js" --profile qqbot-safe-dev
+```
+
 ### npm 发布后安装
 
 ```bash
