@@ -87,9 +87,22 @@ function Ensure-NodePty {
   & node -e $probe $dshBin *> $null
   if ($LASTEXITCODE -eq 0) { return }
 
+  # 老安装可能缺 allowBuilds 配置（pnpm 会静默跳过构建），先补上
+  $wsYaml = Join-Path $dshHome 'profiles/pnpm-workspace.yaml'
+  if (-not (Test-Path -LiteralPath $wsYaml) -or -not ((Get-Content -LiteralPath $wsYaml -Raw) -match 'node-pty')) {
+    Set-Content -LiteralPath $wsYaml -Encoding ascii @'
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
+  '@google/genai': true
+  koffi: true
+  node-pty: true
+  protobufjs: true
+'@
+  }
+
   Write-Host 'node-pty 原生模块缺失，执行 pnpm rebuild node-pty ...'
   Push-Location (Join-Path $dshHome 'profiles')
-  try { Invoke-Pnpm rebuild node-pty } finally { Pop-Location }
+  try { Invoke-Pnpm rebuild node-pty } catch { } finally { Pop-Location }
 
   & node -e $probe $dshBin *> $null
   if ($LASTEXITCODE -eq 0) {
@@ -97,24 +110,25 @@ function Ensure-NodePty {
     return
   }
 
-  # 下载预编译包失败（国内网络常见），强制源码编译再试一次
-  Write-Host '预编译包不可用，尝试源码编译 node-pty（需要编译工具）...'
-  Push-Location (Join-Path $dshHome 'profiles')
-  try {
-    $env:npm_config_build_from_source = 'true'
-    Invoke-Pnpm rebuild node-pty
-  } finally {
-    Remove-Item Env:npm_config_build_from_source -ErrorAction SilentlyContinue
-    Pop-Location
+  # 预编译包不可用（国内网络常见），且 node-pty 的 node-gyp 是 devDependency
+  # 装依赖时不会带上 → 直接在包目录用 npx node-gyp 源码编译
+  $ptyDir = Get-ChildItem (Join-Path $dshHome 'profiles\node_modules\.pnpm') -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like 'node-pty@*' } |
+    ForEach-Object { Join-Path $_.FullName 'node_modules\node-pty' } |
+    Where-Object { Test-Path -LiteralPath $_ } |
+    Select-Object -First 1
+  if ($ptyDir) {
+    Write-Host "预编译包不可用，在 $ptyDir 源码编译（npx node-gyp rebuild）..."
+    Push-Location $ptyDir
+    try { & npx --yes node-gyp@11 rebuild *> $null } catch { } finally { Pop-Location }
+    & node -e $probe $dshBin *> $null
+    if ($LASTEXITCODE -eq 0) {
+      Write-Host 'node-pty 源码编译完成'
+      return
+    }
   }
 
-  & node -e $probe $dshBin *> $null
-  if ($LASTEXITCODE -eq 0) {
-    Write-Host 'node-pty 源码编译完成'
-    return
-  }
-
-  Write-Host '警告：node-pty 仍不可用。请安装编译工具（build-essential/python3 或 gcc-c++/make/python3）后重新运行本脚本。' -ForegroundColor Red
+  Write-Host '警告：node-pty 仍不可用。请安装编译工具（build-essential/python3 或 gcc-c++/make/python3）并确认 npm registry 可达后重试。' -ForegroundColor Red
   throw 'node-pty 原生模块不可用'
 }
 
