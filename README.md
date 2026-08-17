@@ -201,6 +201,9 @@ pnpm check
 | `logMessageContent` | `false` | 是否记录消息正文 |
 | `enableApprovals` | `true` | 是否启用 QQ 一次性审批 |
 | `approvalTimeoutMs` | `120000` | 审批超时，超时自动拒绝 |
+| `streamFlushIntervalMs` | `2000` | 流式增量下发间隔(ms)，`0`=关闭流式（等整条消息） |
+| `sendMaxRetries` | `2` | QQ 回复发送失败最大重试次数 |
+| `sendRetryBaseMs` | `1000` | 发送重试指数退避基数(ms) |
 | `debug` | `false` | SDK 诊断日志开关 |
 
 不建议使用开放模式。如果确实需要：
