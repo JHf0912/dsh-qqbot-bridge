@@ -23,11 +23,10 @@
 ### 准备条件
 
 - Windows 10/11、macOS 或 Linux
-- Node.js `>= 22`
-- pnpm `11.x`（推荐通过 Corepack 管理）
-- 已安装并能正常运行的 DSH `>= 0.1.0-rc.6`
+- Node.js `>= 22`（唯一需要手动安装的运行时，其余由启动脚本自动处理）
 - **必须**：DeepSeek API Key（`DEEPSEEK_API_KEY`）——不设置时机器人无法生成任何回复
-- 一个腾讯官方 QQ 机器人
+- 一个腾讯官方 QQ 机器人（AppSecret 无需手动填写，首次启动扫码自动绑定）
+- pnpm 与 DSH CLI **无需手动安装**——启动脚本会自动装好（pnpm 走 corepack，DSH 装到 `$DSH_HOME\profiles`）
 
 > ⚠️ **必填项**：必须设置 `DEEPSEEK_API_KEY`。DSH 默认使用 DeepSeek 官方接口（`provider: deepseek-official`），缺少 API Key 时模型调用会在运行时直接失败，机器人只会回复「⚠️ 本轮处理出错，请重试。」，启动日志中也会出现警告。请把 API Key 写入本机 DSH 环境文件，而不是项目目录：
 
@@ -43,26 +42,23 @@ $key = Read-Host -Prompt "粘贴你的 DeepSeek API Key"
 Add-Content "$env:USERPROFILE\.dsh\.env" "DEEPSEEK_API_KEY=`"$key`""
 ```
 
-### Windows：从源码一键启动
+### Windows：从源码一键启动（零配置）
 
-下载或克隆仓库后，在项目根目录执行：
+唯一需要手动安装的是 [Node.js ≥ 22](https://nodejs.org)（和 git）。其余全部由脚本自动完成——不要求你手动装 pnpm、DSH CLI 或写 AppSecret。
 
 ```powershell
-corepack enable
-pnpm install --frozen-lockfile
+git clone https://github.com/JHf0912/dsh-qqbot-bridge.git
+cd dsh-qqbot-bridge
 powershell -ExecutionPolicy Bypass -File .\scripts\dev-start.ps1
 ```
 
-> 若 `corepack enable` 报权限错误（EPERM，需要管理员权限），改用 `npm install -g pnpm@11.19.0` 安装 pnpm 即可。
+脚本自动完成：
 
-启动脚本也会自动检查 `DEEPSEEK_API_KEY`：缺失时会在终端提示输入并写入 `$DSH_HOME/.env`。
-
-脚本会完成：
-
-1. 安装依赖并构建 TypeScript；
-2. 创建或更新 `qqbot-safe-dev` profile；
-3. 将 profile 链接到当前源码，后续重新构建即可测试最新代码；
-4. 启动 DSH。
+1. 环境检查：pnpm 缺失时自动启用 corepack（或创建垫片加入 PATH）；DSH CLI 缺失时自动安装到 `$DSH_HOME\profiles`（含 pnpm 11 必需的 `allowBuilds` 配置）；
+2. 安装依赖并构建 TypeScript；
+3. 注册本地插件并链接到当前源码（后续 `pnpm build` 重建即可生效）；
+4. `DEEPSEEK_API_KEY` 缺失 → 终端提示输入并写入 `$DSH_HOME\.env`，已有则跳过；
+5. 启动前调用腾讯接口预校验 QQ 凭据——无效（如 `invalid appid or secret`）直接报错并给出平台核对指引，而不是等 DSH 启动后才失败。
 
 首次没有 QQ 凭据时，终端会显示官方绑定二维码。扫码成功后，插件会自动写入：
 
@@ -72,11 +68,11 @@ QQBOT_SECRET="..."
 QQBOT_C2C_ALLOW="..."
 ```
 
-这些值保存在 `$DSH_HOME/.env`，不会写入仓库。扫码用户会自动成为第一个私聊白名单用户。看到以下内容后即可在 QQ 中发送“你好”：
+这些值保存在 `$DSH_HOME/.env`，不会写入仓库。扫码用户会自动成为第一个私聊白名单用户。
 
-```text
-[im-qqbot] Bot ready! appId=...
-```
+> ⚠️ **首次扫码后请停掉并重跑一次**：首次扫码写入的 `QQBOT_C2C_ALLOW` 白名单不会注入本次进程，重启后消息才会被接受。看到 `[im-qqbot] Bot ready! appId=...` 后即可在 QQ 中发送“你好”。
+
+常用参数：`--profile 名称`（默认 `qqbot-safe-dev`）、`--skip-install`、`--build-only`、`--setup-only`（完成全部准备但不启动）。
 
 以后启动可直接执行：
 
@@ -98,8 +94,8 @@ node "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js" -
 克隆仓库后，在项目根目录执行：
 
 ```bash
-corepack enable
-pnpm install --frozen-lockfile
+git clone https://github.com/JHf0912/dsh-qqbot-bridge.git
+cd dsh-qqbot-bridge
 chmod +x scripts/dev-start.sh
 ./scripts/dev-start.sh
 ```
