@@ -14,6 +14,8 @@
 #   4. 最后一步才启动 DSH（--setup-only 只做准备不启动）。
 set -euo pipefail
 
+echo "[dev-start] 开始：自动环境检查 → 安装 → 构建 → 最后启动 DSH"
+
 PROFILE="qqbot-safe-dev"
 SKIP_INSTALL=0
 BUILD_ONLY=0
@@ -97,18 +99,32 @@ EOF
 }
 
 # 检查 node：只做存在性检查，不自动安装（版本须 >= 22，请自行安装）
-if ! command -v node >/dev/null 2>&1; then
+# WSL 注意：互操作可能把 Windows 版 node.exe 暴露进 PATH，必须排除，
+# 否则后续用 Windows node 跑 Linux 路径会崩溃（桌面弹 Windows 报错框）
+NODE_BIN="$(command -v node 2>/dev/null || true)"
+if [[ -z "$NODE_BIN" ]]; then
   echo "错误：未找到 node，请先安装 Node.js >= 22（https://nodejs.org）" >&2
+  exit 1
+fi
+if [[ "$NODE_BIN" == /mnt/* ]]; then
+  echo "错误：检测到 Windows 版 node（$NODE_BIN），脚本不会使用它。" >&2
+  echo "请在 WSL 内安装 Linux 版 node，例如：" >&2
+  echo "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash" >&2
+  echo "  source ~/.bashrc && nvm install 22" >&2
+  echo "或: sudo apt update && sudo apt install -y nodejs npm" >&2
   exit 1
 fi
 
 # 检查 pnpm：缺失时用 corepack（Node 自带）生成 shim；
 # dsh 内部会直接 spawn "pnpm"，必须保证 pnpm 真实存在于 PATH
 ensure_pnpm() {
-  if command -v pnpm >/dev/null 2>&1; then
+  local pnpm_bin corepack_bin
+  pnpm_bin="$(command -v pnpm 2>/dev/null || true)"
+  if [[ -n "$pnpm_bin" && "$pnpm_bin" != /mnt/* ]]; then
     return 0
   fi
-  if command -v corepack >/dev/null 2>&1; then
+  corepack_bin="$(command -v corepack 2>/dev/null || true)"
+  if [[ -n "$corepack_bin" && "$corepack_bin" != /mnt/* ]]; then
     echo "未找到 pnpm，执行 corepack enable ..."
     corepack enable
     hash -r 2>/dev/null || true
