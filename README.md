@@ -104,11 +104,14 @@ chmod +x scripts/dev-start.sh
 ./scripts/dev-start.sh
 ```
 
-脚本完成的工作与 Windows 版一致：安装依赖并构建 TypeScript、创建或更新 `qqbot-safe-dev` profile、将 profile 链接到当前源码、启动 DSH。常用参数：
+脚本完成的工作与 Windows 版一致：安装依赖并构建 TypeScript、创建或更新 `qqbot-safe-dev` profile、将 profile 链接到当前源码、启动前校验 QQ 凭据、最后一步才启动 DSH。常用参数：
 
 - `--profile 名称`：指定 profile 名（默认 `qqbot-safe-dev`）
 - `--skip-install`：跳过依赖安装
 - `--build-only`：只安装并构建，不启动
+- `--setup-only`：完成全部准备工作但不启动 DSH（适合先跑一遍确认环境，再手动启动）
+
+启动前脚本会调用腾讯接口预校验 `QQBOT_APPID`/`QQBOT_SECRET`，凭据无效（如 `invalid appid or secret`）时会直接报错并给出平台核对指引，而不是等 DSH 启动后才失败。
 
 首次启动同样需要扫码绑定。看到 `Bot ready` 后重启一次（首次扫码写入的 `QQBOT_C2C_ALLOW` 不会注入本次进程，不重启白名单为空）。以后启动可直接执行：
 
