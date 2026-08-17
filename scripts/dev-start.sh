@@ -115,6 +115,14 @@ if [[ "$NODE_BIN" == /mnt/* ]]; then
   exit 1
 fi
 
+# 版本提示（不强制）：项目 engines 要求 node >= 22
+node_version="$(node -v 2>/dev/null | sed 's/^v//')"
+node_major="${node_version%%.*}"
+if [[ "$node_major" =~ ^[0-9]+$ ]] && [[ "$node_major" -lt 22 ]]; then
+  echo "警告：当前 node 为 v$node_version，项目要求 >= 22，构建或 DSH 运行可能失败。" >&2
+  echo "建议: nvm install 22 && nvm alias default 22" >&2
+fi
+
 # 检查 pnpm：缺失时用 corepack（Node 自带）生成 shim；
 # dsh 内部会直接 spawn "pnpm"，必须保证 pnpm 真实存在于 PATH
 ensure_pnpm() {
