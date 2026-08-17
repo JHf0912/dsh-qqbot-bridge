@@ -50,6 +50,39 @@ function Ensure-PnpmShim {
 
 Ensure-PnpmShim
 
+# 检查 DSH CLI：缺失时自动装到 $dshHome\profiles
+# （pnpm 11 默认拦截 build script，必须带 allowBuilds 的 workspace 文件，
+#   否则 koffi/node-pty/esbuild 等原生依赖安装直接报 ERR_PNPM_IGNORED_BUILDS）
+function Ensure-DshCli {
+  if (Test-Path -LiteralPath $dshBin) { return }
+  Write-Host "未找到 DSH CLI，自动安装 @deepseek-ai/dsh 到 $dshHome\profiles ..."
+  $profilesDir = Join-Path $dshHome 'profiles'
+  New-Item -ItemType Directory -Force $profilesDir | Out-Null
+  $pkgJson = Join-Path $profilesDir 'package.json'
+  if (-not (Test-Path -LiteralPath $pkgJson)) {
+    Set-Content -LiteralPath $pkgJson -Encoding ascii '{"name":"profiles","private":true,"dependencies":{"@deepseek-ai/dsh":"0.1.0-rc.6"}}'
+  }
+  $wsYaml = Join-Path $profilesDir 'pnpm-workspace.yaml'
+  if (-not (Test-Path -LiteralPath $wsYaml)) {
+    Set-Content -LiteralPath $wsYaml -Encoding ascii @'
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
+  '@google/genai': true
+  koffi: true
+  node-pty: true
+  protobufjs: true
+'@
+  }
+  Push-Location $profilesDir
+  try { Invoke-Pnpm install } finally { Pop-Location }
+  if (-not (Test-Path -LiteralPath $dshBin)) {
+    throw "DSH CLI 安装失败，请手动检查 $profilesDir 下的 pnpm install 输出"
+  }
+  Write-Host "DSH CLI 已安装: $dshBin"
+}
+
+Ensure-DshCli
+
 # 检查/校验 QQ 机器人凭据：缺失时引导录入，存在时调用 QQ 平台接口预校验，
 # 避免 DSH 启动后才因 invalid appid or secret 失败
 function Ensure-QqCreds {
@@ -99,10 +132,6 @@ function Ensure-QqCreds {
     Write-Host '   在「开发设置」查看并粘贴当前的 AppSecret 后重试。'
     throw 'QQ 凭据校验失败'
   }
-}
-
-if (-not (Test-Path -LiteralPath $dshBin)) {
-  throw "未找到 DSH CLI: $dshBin"
 }
 
 # ── API Key 检查：进程环境或 $dshHome/.env 中缺失时交互式输入并落盘 ──
