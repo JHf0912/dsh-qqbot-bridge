@@ -170,7 +170,8 @@ ensure_api_key() {
   fi
 
   if [[ -f "$env_file" ]]; then
-    existing="$(grep -E '^DEEPSEEK_API_KEY=' "$env_file" 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"')"
+    # 管道加 || true：grep 无匹配返回 1，在 set -e + pipefail 下会导致脚本静默退出
+    existing="$(grep -E '^DEEPSEEK_API_KEY=' "$env_file" 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' || true)"
   fi
   if [[ -n "$existing" ]]; then
     echo "已检测到 $env_file 中的 DEEPSEEK_API_KEY"
@@ -197,8 +198,8 @@ ensure_qq_creds() {
   local env_file="$DSH_HOME/.env"
   local appid="" secret=""
   if [[ -f "$env_file" ]]; then
-    appid="$(grep -E '^QQBOT_APPID=' "$env_file" | head -n 1 | cut -d= -f2- | tr -d '"')"
-    secret="$(grep -E '^QQBOT_SECRET=' "$env_file" | head -n 1 | cut -d= -f2- | tr -d '"')"
+    appid="$(grep -E '^QQBOT_APPID=' "$env_file" | head -n 1 | cut -d= -f2- | tr -d '"' || true)"
+    secret="$(grep -E '^QQBOT_SECRET=' "$env_file" | head -n 1 | cut -d= -f2- | tr -d '"' || true)"
   fi
 
   if [[ -z "$appid" || -z "$secret" ]]; then
@@ -234,7 +235,7 @@ ensure_qq_creds() {
     echo "QQ 凭据有效 ✅"
   else
     local code
-    code="$(echo "$resp" | grep -o '"code":[0-9]*' | head -n 1 | cut -d: -f2)"
+    code="$(echo "$resp" | grep -o '"code":[0-9]*' | head -n 1 | cut -d: -f2 || true)"
     echo "❌ QQ 凭据无效（code=${code:-未知}）。请到 q.qq.com 打开 AppID $appid，" >&2
     echo "   在「开发设置」查看并粘贴当前的 AppSecret 后重试。" >&2
     echo "   更新: sed -i 's/^QQBOT_SECRET=.*/QQBOT_SECRET=\"<新Secret>\"/' $env_file" >&2
