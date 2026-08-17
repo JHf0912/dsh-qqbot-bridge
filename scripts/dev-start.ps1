@@ -31,6 +31,24 @@ function Invoke-Pnpm {
   }
 }
 
+# ── 确保 pnpm 在 PATH 上：dsh 内部直接 spawn "pnpm"，不会走 corepack 兜底 ──
+# 没有 pnpm 命令时创建一个指向 corepack pnpm 的用户级垫片并加入 PATH
+function Ensure-PnpmShim {
+  if (Get-Command pnpm -ErrorAction SilentlyContinue) { return }
+  $shimDir = Join-Path $env:USERPROFILE '.local-bin'
+  $shim = Join-Path $shimDir 'pnpm.cmd'
+  if (-not (Test-Path -LiteralPath $shim)) {
+    New-Item -ItemType Directory -Force $shimDir | Out-Null
+    Set-Content -LiteralPath $shim -Encoding ascii "@echo off`r`ncorepack pnpm %*"
+  }
+  $env:PATH = "$shimDir;$env:PATH"
+  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+    throw '无法创建 pnpm。请执行: corepack enable 或用 npm install -g pnpm'
+  }
+}
+
+Ensure-PnpmShim
+
 if (-not (Test-Path -LiteralPath $dshBin)) {
   throw "未找到 DSH CLI: $dshBin"
 }
