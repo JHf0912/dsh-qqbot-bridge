@@ -83,7 +83,8 @@ allowBuilds:
 
 # 探测并修复 node-pty 原生模块（dsh 的 require 视角解析）
 function Ensure-NodePty {
-  $probe = 'const{createRequire}=require("module");const r=createRequire(process.argv[1]);require(r.resolve("node-pty"))'
+  # 注意：JS 内只用单引号，避免 PowerShell 5.1 向原生命令传参时破坏双引号
+  $probe = "const{createRequire}=require('module');const r=createRequire(process.argv[1]);require(r.resolve('node-pty'))"
   & node -e $probe $dshBin *> $null
   if ($LASTEXITCODE -eq 0) { return }
 
