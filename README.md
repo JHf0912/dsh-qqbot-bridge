@@ -46,6 +46,8 @@ Add-Content "$env:USERPROFILE\.dsh\.env" "DEEPSEEK_API_KEY=`"$key`""
 
 唯一需要手动安装的是 [Node.js ≥ 22](https://nodejs.org)（和 git）。其余全部由脚本自动完成——不要求你手动装 pnpm、DSH CLI 或写 AppSecret。
 
+> 设计说明：`dev-start.ps1`（Windows 版）**不包含 node 存在性检查**（与 Linux/macOS 版不同）。请确保 Node.js ≥ 22 已安装并加入 PATH；若缺失，脚本会在后续调用原生命令时报错。
+
 ```powershell
 git clone https://github.com/JHf0912/dsh-qqbot-bridge.git
 cd dsh-qqbot-bridge
