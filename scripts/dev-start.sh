@@ -105,32 +105,46 @@ ensure_node_pty() {
     return 0
   fi
 
+  # 老安装可能缺 allowBuilds 配置（pnpm 会静默跳过构建），先补上
+  local ws_yaml="$DSH_HOME/profiles/pnpm-workspace.yaml"
+  if [[ ! -f "$ws_yaml" ]] || ! grep -q 'node-pty' "$ws_yaml"; then
+    cat > "$ws_yaml" <<'EOF'
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
+  '@google/genai': true
+  koffi: true
+  node-pty: true
+  protobufjs: true
+EOF
+  fi
+
   echo "node-pty 原生模块缺失，执行 pnpm rebuild node-pty ..."
   (
     cd "$DSH_HOME/profiles"
     pnpm rebuild node-pty
-  )
+  ) || true
 
   if node -e "$probe" "$DSH_BIN" >/dev/null 2>&1; then
     echo "node-pty 重建完成 ✅"
     return 0
   fi
 
-  # 下载预编译包失败（国内网络常见），强制源码编译再试一次
-  echo "预编译包不可用，尝试源码编译 node-pty（需要编译工具）..."
-  (
-    cd "$DSH_HOME/profiles"
-    npm_config_build_from_source=true pnpm rebuild node-pty
-  )
-
-  if node -e "$probe" "$DSH_BIN" >/dev/null 2>&1; then
-    echo "node-pty 源码编译完成 ✅"
-    return 0
+  # 预编译包下载失败（国内网络常见），且 node-pty 的 node-gyp 是 devDependency
+  # 装依赖时不会带上 → 直接在包目录用 npx node-gyp 源码编译
+  local pty_dir
+  pty_dir="$(find "$DSH_HOME/profiles/node_modules/.pnpm" -maxdepth 3 -type d -path '*node-pty@*/node_modules/node-pty' 2>/dev/null | head -n 1)"
+  if [[ -n "$pty_dir" ]]; then
+    echo "预编译包不可用，在 $pty_dir 源码编译（npx node-gyp rebuild）..."
+    ( cd "$pty_dir" && npx --yes node-gyp@11 rebuild ) || true
+    if node -e "$probe" "$DSH_BIN" >/dev/null 2>&1; then
+      echo "node-pty 源码编译完成 ✅"
+      return 0
+    fi
   fi
 
-  echo "警告：node-pty 仍不可用。请安装编译工具后重新运行本脚本：" >&2
-  echo "  Debian/Ubuntu: sudo apt update && sudo apt install -y build-essential python3" >&2
-  echo "  CentOS/RHEL:   sudo yum install -y gcc-c++ make python3" >&2
+  echo "警告：node-pty 仍不可用。请依次检查：" >&2
+  echo "  1. 编译工具: sudo apt install -y build-essential python3（CentOS: yum install -y gcc-c++ make python3）" >&2
+  echo "  2. npm 可达: npm config get registry（国内可设 https://registry.npmmirror.com）" >&2
   exit 1
 }
 
