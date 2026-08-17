@@ -314,7 +314,8 @@ pnpm check
 - DSH 直接 `turn/end`：显式配置 `provider` 和 `model`，并确认模型凭据可用。
 - 权限申请没有出现：确认 `enableApprovals: true`、审批策略为 `ask`，且操作确实触发沙箱升级。
 - 修改 `.env` 后无效：完整停止并重启 DSH。
-- 启动前校验报 `invalid appid or secret`（code 100016）：`.env` 中的 QQ 凭据已过期或被重置。删除 `QQBOT_APPID`、`QQBOT_SECRET` 两行后重启脚本并重新扫码绑定即可（脚本会提示选择），或到 q.qq.com 的「开发设置」复制当前 AppSecret 更新。删除命令：Windows PowerShell `(Get-Content "$env:USERPROFILE\.dsh\.env") | Where-Object { $_ -notmatch '^QQBOT_APPID=|^QQBOT_SECRET=' } | Set-Content "$env:USERPROFILE\.dsh\.env"`；Linux/macOS `sed -i '/^QQBOT_APPID=/d; /^QQBOT_SECRET=/d' ~/.dsh/.env`。
+- 启动前校验报 `invalid appid or secret`（code 100016）：`.env` 中的 QQ 凭据已过期或被重置。此时脚本会当场提供 3 个选项：`1` 重新粘贴 AppID/AppSecret（写入后立即重新校验）、`2` 删除凭据并重新扫码绑定、`3` 跳过校验继续启动。也可到 q.qq.com 的「开发设置」复制当前 AppSecret 后选 `1` 粘贴。手动删除命令：Windows PowerShell `(Get-Content "$env:USERPROFILE\.dsh\.env") | Where-Object { $_ -notmatch '^QQBOT_APPID=|^QQBOT_SECRET=' } | Set-Content "$env:USERPROFILE\.dsh\.env"`；Linux/macOS `sed -i '/^QQBOT_APPID=/d; /^QQBOT_SECRET=/d' ~/.dsh/.env`。
+- 启动报 `Failed to load native module: pty.node`（或 `dsh: plugin tree failed to load`）：node-pty 原生模块未装上，国内网络从 GitHub 下载预编译包失败最常见。启动脚本会自动修复（补 allowBuilds 配置 → `pnpm rebuild node-pty` → `npx node-gyp` 源码编译）。手动处理：先装编译工具（`sudo apt install -y build-essential python3`，CentOS 用 `yum install -y gcc-c++ make python3`），然后在 `~/.dsh/profiles` 补上含 `node-pty: true` 的 `pnpm-workspace.yaml` allowBuilds 配置（内容见启动脚本），再执行 `cd node_modules/.pnpm/node-pty@*/node_modules/node-pty && npx --yes node-gyp@11 rebuild`。若 `npx` 拉包缓慢，先 `npm config set registry https://registry.npmmirror.com`。
 
 更多排查步骤见 [故障排查](docs/TROUBLESHOOTING.md)。
 
