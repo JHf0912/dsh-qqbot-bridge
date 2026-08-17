@@ -9,7 +9,7 @@
 - 只使用腾讯 QQ 机器人开放平台和腾讯官方 SDK，不使用个人 QQ 逆向协议、Hook、注入或模拟登录。
 - 首次启动支持腾讯官方扫码绑定，自动保存 AppID、Secret 和扫码用户 OpenID。
 - 私聊默认白名单，群聊默认关闭；空白名单不会退化成开放访问。
-- QQ 消息直接驱动 DSH Agent，支持流式回复、会话持久化和模型切换。
+- QQ 消息直接驱动 DSH Agent，支持流式回复、发送失败自动重试、会话持久化和模型切换。
 - 支持在 QQ 内处理 DSH 的一次性权限申请：`/approve CODE` 或 `/deny CODE`。
 - AppSecret、OpenID 和 API Key 仅保存在本机 `$DSH_HOME/.env`，不进入项目配置和日志。
 - 内置隐私扫描、单元测试、打包检查和 GitHub Actions CI。
@@ -35,6 +35,12 @@
 # Windows 默认位置：C:\Users\<你>\.dsh\.env
 # macOS/Linux 默认位置：~/.dsh/.env
 DEEPSEEK_API_KEY="你的 API Key"
+```
+
+或者命令行设置：
+```
+$key = Read-Host -Prompt "粘贴你的 DeepSeek API Key"
+Add-Content "$env:USERPROFILE\.dsh\.env" "DEEPSEEK_API_KEY=`"$key`""
 ```
 
 ### Windows：从源码一键启动
@@ -186,25 +192,25 @@ pnpm check
 
 ## 主要配置
 
-| 配置 | 默认值 | 说明 |
-|---|---:|---|
-| `provider` | `deepseek-official` | DSH LLM provider |
-| `model` | `deepseek-v4-flash` | DSH 模型；可通过 `/model` 切换 |
-| `cwd` | `./qqbot-workspace` | Agent 专用工作目录 |
-| `requireMention` | `true` | 群聊是否必须 @机器人 |
-| `access.c2cMode` | `allowlist` | 私聊访问策略 |
-| `access.c2cAllow` | 来自环境变量 | 允许的用户 OpenID |
-| `access.groupMode` | `disabled` | 群聊访问策略 |
-| `access.groupAllow` | `[]` | 允许的群 OpenID |
-| `acknowledgeOpenAccess` | `false` | 开放访问的二次风险确认 |
-| `allowUnsafeCwd` | `false` | 是否允许根目录或用户主目录 |
-| `logMessageContent` | `false` | 是否记录消息正文 |
-| `enableApprovals` | `true` | 是否启用 QQ 一次性审批 |
-| `approvalTimeoutMs` | `120000` | 审批超时，超时自动拒绝 |
-| `streamFlushIntervalMs` | `2000` | 流式增量下发间隔(ms)，`0`=关闭流式（等整条消息） |
-| `sendMaxRetries` | `2` | QQ 回复发送失败最大重试次数 |
-| `sendRetryBaseMs` | `1000` | 发送重试指数退避基数(ms) |
-| `debug` | `false` | SDK 诊断日志开关 |
+| 配置                      |                默认值 | 说明                                               |
+| ------------------------- | --------------------: | -------------------------------------------------- |
+| `provider`              | `deepseek-official` | DSH LLM provider                                   |
+| `model`                 | `deepseek-v4-flash` | DSH 模型；可通过`/model` 切换                    |
+| `cwd`                   | `./qqbot-workspace` | Agent 专用工作目录                                 |
+| `requireMention`        |              `true` | 群聊是否必须 @机器人                               |
+| `access.c2cMode`        |         `allowlist` | 私聊访问策略                                       |
+| `access.c2cAllow`       |          来自环境变量 | 允许的用户 OpenID                                  |
+| `access.groupMode`      |          `disabled` | 群聊访问策略                                       |
+| `access.groupAllow`     |                `[]` | 允许的群 OpenID                                    |
+| `acknowledgeOpenAccess` |             `false` | 开放访问的二次风险确认                             |
+| `allowUnsafeCwd`        |             `false` | 是否允许根目录或用户主目录                         |
+| `logMessageContent`     |             `false` | 是否记录消息正文                                   |
+| `enableApprovals`       |              `true` | 是否启用 QQ 一次性审批                             |
+| `approvalTimeoutMs`     |            `120000` | 审批超时，超时自动拒绝                             |
+| `streamFlushIntervalMs` |              `2000` | 流式增量下发间隔(ms)，`0`=关闭流式（等整条消息） |
+| `sendMaxRetries`        |                 `2` | QQ 回复发送失败最大重试次数                        |
+| `sendRetryBaseMs`       |              `1000` | 发送重试指数退避基数(ms)                           |
+| `debug`                 |             `false` | SDK 诊断日志开关                                   |
 
 不建议使用开放模式。如果确实需要：
 
@@ -264,6 +270,7 @@ pnpm check
 
 - 机器人显示“未连接服务”：确认启动终端仍在运行，并检查是否出现 `Bot ready`。
 - 机器人完全不回复：检查 `QQBOT_C2C_ALLOW` 是否存在且是用户 OpenID，不是机器人 AppID。
+- 收到「⚠️ 本轮处理出错，请重试。」：DSH 本轮生成失败。先确认 `DEEPSEEK_API_KEY` 已配置且模型可用；若持续出现且日志含 `corrupt session log`，删除 `$DSH_HOME/sessions/` 下对应会话后重启。
 - DSH 直接 `turn/end`：显式配置 `provider` 和 `model`，并确认模型凭据可用。
 - 权限申请没有出现：确认 `enableApprovals: true`、审批策略为 `ask`，且操作确实触发沙箱升级。
 - 修改 `.env` 后无效：完整停止并重启 DSH。
