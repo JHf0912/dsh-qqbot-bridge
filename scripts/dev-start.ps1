@@ -128,9 +128,40 @@ function Ensure-QqCreds {
   if ($resp.access_token) {
     Write-Host 'QQ 凭据有效'
   } else {
-    Write-Host "❌ QQ 凭据无效（code: $($resp.code)）。请到 q.qq.com 打开 AppID $appId，" -ForegroundColor Red
-    Write-Host '   在「开发设置」查看并粘贴当前的 AppSecret 后重试。'
-    throw 'QQ 凭据校验失败'
+    Write-Host "❌ QQ 凭据无效（code: $($resp.code)）。常见原因：平台侧 Secret 已重置、机器人被停用/重建。" -ForegroundColor Red
+    Write-Host '  1) 重新粘贴 AppID / AppSecret（写入 .env 后再次校验）'
+    Write-Host '  2) 删除凭据并重新扫码绑定（启动后显示二维码）'
+    Write-Host '  3) 跳过校验，仍然启动（可能启动后失败）'
+    switch (Read-Host '选择 [1/2/3]') {
+      '1' {
+        $appId = Read-Host 'AppID'
+        $secret = Read-Host 'AppSecret'
+        $lines = Get-Content -LiteralPath $envFile
+        if ($lines | Where-Object { $_ -match '^QQBOT_APPID=' }) {
+          $lines = $lines -replace '^QQBOT_APPID=.*', "QQBOT_APPID=`"$appId`""
+        } else {
+          $lines += "QQBOT_APPID=`"$appId`""
+        }
+        if ($lines | Where-Object { $_ -match '^QQBOT_SECRET=' }) {
+          $lines = $lines -replace '^QQBOT_SECRET=.*', "QQBOT_SECRET=`"$secret`""
+        } else {
+          $lines += "QQBOT_SECRET=`"$secret`""
+        }
+        Set-Content -LiteralPath $envFile -Value $lines -Encoding utf8
+        Ensure-QqCreds
+        return
+      }
+      '2' {
+        $filtered = @(Get-Content -LiteralPath $envFile | Where-Object { $_ -notmatch '^QQBOT_APPID=|^QQBOT_SECRET=' })
+        Set-Content -LiteralPath $envFile -Value $filtered -Encoding utf8
+        Write-Host '已删除 QQ 凭据。现在启动 DSH 显示二维码，扫码后 Ctrl+C 停止并重新运行本脚本。'
+        return
+      }
+      default {
+        Write-Host '跳过校验，继续启动。'
+        return
+      }
+    }
   }
 }
 
