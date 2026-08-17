@@ -1,7 +1,8 @@
 param(
   [string]$Profile = 'qqbot-safe-dev',
   [switch]$SkipInstall,
-  [switch]$BuildOnly
+  [switch]$BuildOnly,
+  [switch]$SetupOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,6 +49,57 @@ function Ensure-PnpmShim {
 }
 
 Ensure-PnpmShim
+
+# 检查/校验 QQ 机器人凭据：缺失时引导录入，存在时调用 QQ 平台接口预校验，
+# 避免 DSH 启动后才因 invalid appid or secret 失败
+function Ensure-QqCreds {
+  $envFile = Join-Path $dshHome '.env'
+  $appId = $null
+  $secret = $null
+  if (Test-Path -LiteralPath $envFile) {
+    $content = Get-Content -LiteralPath $envFile
+    if ($line = $content | Where-Object { $_ -match '^QQBOT_APPID=' } | Select-Object -First 1) {
+      $appId = (($line -replace '^QQBOT_APPID=', '') -replace '"', '').Trim()
+    }
+    if ($line = $content | Where-Object { $_ -match '^QQBOT_SECRET=' } | Select-Object -First 1) {
+      $secret = (($line -replace '^QQBOT_SECRET=', '') -replace '"', '').Trim()
+    }
+  }
+
+  if (-not $appId -or -not $secret) {
+    Write-Host '未检测到 QQ 机器人凭据（QQBOT_APPID / QQBOT_SECRET）。'
+    Write-Host '第一次启动 DSH 时会显示腾讯官方二维码，扫码后自动写入凭据。'
+    Write-Host '  1) 手动粘贴 AppID / AppSecret'
+    Write-Host '  2) 先启动一次扫码绑定（扫码后需 Ctrl+C 停止并重新运行本脚本）'
+    Write-Host '  3) 跳过'
+    switch (Read-Host '选择 [1/2/3]') {
+      '1' {
+        $appId = Read-Host 'AppID'
+        $secret = Read-Host 'AppSecret'
+        New-Item -ItemType Directory -Force $dshHome | Out-Null
+        Add-Content -LiteralPath $envFile "QQBOT_APPID=`"$appId`""
+        Add-Content -LiteralPath $envFile "QQBOT_SECRET=`"$secret`""
+      }
+      default { return }  # 2、3 都直接进入启动
+    }
+  }
+
+  Write-Host "校验 QQ 凭据（AppID $appId）..."
+  try {
+    $body = @{ appId = $appId; clientSecret = $secret } | ConvertTo-Json
+    $resp = Invoke-RestMethod -Uri 'https://bots.qq.com/app/getAppAccessToken' -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 15
+  } catch {
+    Write-Host '警告：无法连接 QQ 平台校验凭据（网络问题），继续启动。'
+    return
+  }
+  if ($resp.access_token) {
+    Write-Host 'QQ 凭据有效'
+  } else {
+    Write-Host "❌ QQ 凭据无效（code: $($resp.code)）。请到 q.qq.com 打开 AppID $appId，" -ForegroundColor Red
+    Write-Host '   在「开发设置」查看并粘贴当前的 AppSecret 后重试。'
+    throw 'QQ 凭据校验失败'
+  }
+}
 
 if (-not (Test-Path -LiteralPath $dshBin)) {
   throw "未找到 DSH CLI: $dshBin"
@@ -103,6 +155,14 @@ try {
   } finally {
     Pop-Location
   }
+
+  if ($SetupOnly) {
+    Write-Host '所有前置准备已完成（未启动 DSH）。'
+    Write-Host "启动请运行: $PSCommandPath --profile $Profile"
+    exit 0
+  }
+
+  Ensure-QqCreds
 
   Write-Host "启动 DSH profile: $Profile"
   & node $dshBin --profile $Profile

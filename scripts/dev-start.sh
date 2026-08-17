@@ -2,21 +2,22 @@
 # dev-start.sh — Linux/macOS 启动脚本（dev-start.ps1 的 bash 等价实现）
 #
 # 用法：
-#   ./scripts/dev-start.sh [--profile 名称] [--skip-install] [--build-only]
+#   ./scripts/dev-start.sh [--profile 名称] [--skip-install] [--build-only] [--setup-only]
 #
 # 脚本会完成：
 #   0. 环境检查：缺 pnpm 时自动执行 corepack enable；缺 DSH CLI 时自动安装
 #      @deepseek-ai/dsh 到 $DSH_HOME/profiles；缺 DEEPSEEK_API_KEY 时
-#      交互式提示输入并写入 $DSH_HOME/.env；
+#      交互式提示输入并写入 $DSH_HOME/.env；启动前校验 QQ 凭据；
 #   1. 安装依赖并构建 TypeScript；
 #   2. 创建或更新 profile；
 #   3. 将 profile 链接到当前源码，后续重新构建即可测试最新代码；
-#   4. 启动 DSH。
+#   4. 最后一步才启动 DSH（--setup-only 只做准备不启动）。
 set -euo pipefail
 
 PROFILE="qqbot-safe-dev"
 SKIP_INSTALL=0
 BUILD_ONLY=0
+SETUP_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -26,6 +27,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --build-only)
       BUILD_ONLY=1
+      shift
+      ;;
+    --setup-only)
+      SETUP_ONLY=1
       shift
       ;;
     --profile | -p)
@@ -162,6 +167,57 @@ ensure_api_key() {
   echo "已写入 $env_file（本次运行已生效）"
 }
 
+# 检查/校验 QQ 机器人凭据：缺失时引导录入，存在时调用 QQ 平台接口预校验，
+# 避免 DSH 启动后才因 invalid appid or secret 失败
+ensure_qq_creds() {
+  local env_file="$DSH_HOME/.env"
+  local appid="" secret=""
+  if [[ -f "$env_file" ]]; then
+    appid="$(grep -E '^QQBOT_APPID=' "$env_file" | head -n 1 | cut -d= -f2- | tr -d '"')"
+    secret="$(grep -E '^QQBOT_SECRET=' "$env_file" | head -n 1 | cut -d= -f2- | tr -d '"')"
+  fi
+
+  if [[ -z "$appid" || -z "$secret" ]]; then
+    echo "未检测到 QQ 机器人凭据（QQBOT_APPID / QQBOT_SECRET）。"
+    echo "第一次启动 DSH 时会显示腾讯官方二维码，扫码后自动写入凭据。"
+    echo "也可现在手动配置："
+    echo "  1) 手动粘贴 AppID / AppSecret"
+    echo "  2) 先启动一次扫码绑定（扫码后需 Ctrl+C 停止并重新运行本脚本）"
+    echo "  3) 跳过（留到启动时处理）"
+    read -rp "选择 [1/2/3]: " choice
+    case "$choice" in
+      1)
+        read -rp "AppID: " appid
+        read -rsp "AppSecret: " secret; echo
+        mkdir -p "$DSH_HOME"
+        echo "QQBOT_APPID=\"$appid\"" >> "$env_file"
+        echo "QQBOT_SECRET=\"$secret\"" >> "$env_file"
+        ;;
+      *) return 0 ;;  # 2、3 都直接进入启动
+    esac
+  fi
+
+  echo "校验 QQ 凭据（AppID $appid）..."
+  local resp
+  if ! resp="$(curl -fsS -m 15 -H 'Content-Type: application/json' \
+      -d "{\"appId\":\"$appid\",\"clientSecret\":\"$secret\"}" \
+      https://bots.qq.com/app/getAppAccessToken 2>/dev/null)"; then
+    echo "警告：无法连接 QQ 平台校验凭据（网络问题），继续启动。" >&2
+    return 0
+  fi
+
+  if echo "$resp" | grep -q '"access_token"'; then
+    echo "QQ 凭据有效 ✅"
+  else
+    local code
+    code="$(echo "$resp" | grep -o '"code":[0-9]*' | head -n 1 | cut -d: -f2)"
+    echo "❌ QQ 凭据无效（code=${code:-未知}）。请到 q.qq.com 打开 AppID $appid，" >&2
+    echo "   在「开发设置」查看并粘贴当前的 AppSecret 后重试。" >&2
+    echo "   更新: sed -i 's/^QQBOT_SECRET=.*/QQBOT_SECRET=\"<新Secret>\"/' $env_file" >&2
+    exit 1
+  fi
+}
+
 ensure_pnpm
 ensure_dsh
 ensure_api_key
@@ -185,6 +241,14 @@ PROFILE_ROOT="$DSH_HOME/profiles/$PROFILE"
   cd "$PROFILE_ROOT"
   pnpm link "$PROJECT_ROOT"
 )
+
+if [[ "$SETUP_ONLY" -eq 1 ]]; then
+  echo "所有前置准备已完成（未启动 DSH）。"
+  echo "启动请运行: $0 --profile $PROFILE"
+  exit 0
+fi
+
+ensure_qq_creds
 
 echo "启动 DSH profile: $PROFILE"
 exec node "$DSH_BIN" --profile "$PROFILE"
