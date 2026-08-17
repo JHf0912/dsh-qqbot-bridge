@@ -97,7 +97,8 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-# 检查 pnpm：缺失时用 corepack（Node 自带）生成 shim
+# 检查 pnpm：缺失时用 corepack（Node 自带）生成 shim；
+# dsh 内部会直接 spawn "pnpm"，必须保证 pnpm 真实存在于 PATH
 ensure_pnpm() {
   if command -v pnpm >/dev/null 2>&1; then
     return 0
@@ -110,8 +111,22 @@ ensure_pnpm() {
     if command -v pnpm >/dev/null 2>&1; then
       return 0
     fi
+    # corepack enable 未生效时创建用户级垫片
+    local shim_dir="$HOME/.local/bin"
+    mkdir -p "$shim_dir"
+    cat > "$shim_dir/pnpm" <<'EOF'
+#!/usr/bin/env bash
+exec corepack pnpm "$@"
+EOF
+    chmod +x "$shim_dir/pnpm" 2>/dev/null || true
+    export PATH="$shim_dir:$PATH"
+    hash -r 2>/dev/null || true
+    if command -v pnpm >/dev/null 2>&1; then
+      echo "已创建 pnpm 垫片: $shim_dir/pnpm"
+      return 0
+    fi
   fi
-  echo "错误：未找到 pnpm。请手动执行: sudo corepack enable" >&2
+  echo "错误：未找到 pnpm。请手动执行: sudo corepack enable 或用 npm install -g pnpm" >&2
   exit 1
 }
 
